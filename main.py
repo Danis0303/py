@@ -13,7 +13,7 @@ session = AiohttpSession(proxy='http://proxy.server:3128')  # в proxy указ�
 TOKEN = '6924307353:AAFvh9QWhOm8vx5z6jIf_u49xmlUGv4dSgY'  # Замените на ваш токен
 API = 'c1b2aac246ad72c2775da986a41f7c21'  # Замените на ваш API-ключ OpenWeatherMap
 
-bot = Bot(token=TOKEN, session=session)
+bot = Bot(token=TOKEN)
 dp = Dispatcher()  # Создаём диспетчер
 
 
