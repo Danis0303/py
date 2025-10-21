@@ -8,9 +8,9 @@ import nest_asyncio
 # ==========================
 # Настройки
 # ==========================
-BOT_TOKEN = "ТВОЙ_ТОКЕН_БОТА"
-MISTRAL_API_KEY = "ТВОЙ_MISTRAL_API_KEY"
-WEBHOOK_URL = "https://<твой-реплит-адрес>.repl.co/webhook"
+BOT_TOKEN = "8374515324:AAEDAJezf5FZiDQWHehBhAOhG-NB_PiyFC4"
+MISTRAL_API_KEY = "FdppZTy7F6gniPkLn90slYBnxyzK53X"
+WEBHOOK_URL = "https://@danistairovul.repl.co/webhook"
 MODEL = "mistral-large-latest"
 
 # ==========================
