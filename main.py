@@ -1,94 +1,92 @@
 import asyncio
-import requests
+from flask import Flask, request
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import CallbackQuery, Message
+from mistralai import Mistral
+import nest_asyncio
 
-TOKEN = '6924307353:AAFvh9QWhOm8vx5z6jIf_u49xmlUGv4dSgY'  # Замените на ваш токен
-API = 'c1b2aac246ad72c2775da986a41f7c21'  # Замените на ваш API-ключ OpenWeatherMap
+# ==========================
+# Настройки
+# ==========================
+BOT_TOKEN = "ТВОЙ_ТОКЕН_БОТА"
+MISTRAL_API_KEY = "ТВОЙ_MISTRAL_API_KEY"
+WEBHOOK_URL = "https://<твой-реплит-адрес>.repl.co/webhook"
+MODEL = "mistral-large-latest"
 
-bot = Bot(token=TOKEN)
-dp = Dispatcher()  # Создаём диспетчер
+# ==========================
+# Инициализация
+# ==========================
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+client = Mistral(api_key=MISTRAL_API_KEY)
 
+chat_history = {}  # История чата
 
-@dp.message(Command("start"))
-async def start(message: Message):
-    await send_city_selection(message.chat.id)
+app = Flask(__name__)
 
+# ==========================
+# Обработчики
+# ==========================
 
-@dp.callback_query(F.data)
-async def callback_query(call: CallbackQuery):
-    if call.data == "enter_city":
-        await bot.send_message(call.message.chat.id, "Введите название города:")
-    elif call.data == "back":
-        await send_city_selection(call.message.chat.id)  # Возврат к выбору города
-    else:
-        await send_weather(call.message.chat.id, call.data)
-
+@dp.message(Command(commands=["start"]))
+async def start_handler(message: types.Message):
+    await message.answer("Привет! Я ИИ-бот 🤖 Отправь сообщение, и я отвечу.")
 
 @dp.message(F.text)
-async def get_weather(message: Message):
-    city = message.text.strip().lower()
-    await send_weather(message.chat.id, city)
+async def ai_handler(message: types.Message):
+    chat_id = message.chat.id
 
+    if chat_id not in chat_history:
+        chat_history[chat_id] = [
+            {"role": "system", "content": "Ты полезный ассистент, отвечай кратко и по делу."}
+        ]
 
-async def send_city_selection(chat_id):
-    """Отправляет сообщение с выбором города и кнопкой для ввода вручную"""
-    markup = InlineKeyboardBuilder()
-    markup.add(
-        InlineKeyboardButton(text="Москва", callback_data="Москва"),
-        InlineKeyboardButton(text="Санкт-Петербург", callback_data="Санкт-Петербург"),
-        InlineKeyboardButton(text="Новосибирск", callback_data="Новосибирск"),
+    chat_history[chat_id].append({"role": "user", "content": message.text})
+
+    # Запрос к Mistral
+    chat_response = client.chat.complete(
+        model=MODEL,
+        messages=chat_history[chat_id]
     )
-    markup.adjust(1)  # Упорядочивание кнопок по 2 в ряд
+    response_text = chat_response.choices[0].message.content
 
-    await bot.send_message(chat_id, "Выберите город или введите название вручную:", reply_markup=markup.as_markup())
+    chat_history[chat_id].append({"role": "assistant", "content": response_text})
 
+    # Ограничиваем историю до 10 сообщений
+    if len(chat_history[chat_id]) > 10:
+        chat_history[chat_id] = [chat_history[chat_id][0]] + chat_history[chat_id][-9:]
 
-async def send_weather(chat_id, city):
-    """Получает и отправляет погоду"""
-    try:
-        res = requests.get(f'https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API}&units=metric')
-        data = res.json()
+    await message.answer(response_text)
 
-        if res.status_code == 200:
-            weather = data['weather'][0]['description']
-            temp = data['main']['temp']
-            feels_like = data['main']['feels_like']
-            humidity = data['main']['humidity']
+# ==========================
+# Flask webhook endpoint
+# ==========================
+@app.route("/webhook", methods=["POST"])
+async def webhook():
+    data = await request.get_json(force=True)
+    update = types.Update.model_validate(data)
+    await dp.feed_update(bot, update)
+    return "ok", 200
 
-            response = (f"🌍 Погода в {city.capitalize()}:\n"
-                        f"🌡 Температура: {temp}°C\n"
-                        f"🤒 Ощущается как: {feels_like}°C\n"
-                        f"💧 Влажность: {humidity}%\n"
-                        f"☁️ Состояние: {weather.capitalize()}")
+# ==========================
+# Настройка webhook
+# ==========================
+async def on_startup():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_webhook(WEBHOOK_URL)
+    print(f"Webhook установлен: {WEBHOOK_URL}")
 
-            # Кнопки "Обновить", "Ввести город заново", "Купить мне кофе" (ссылка на другого бота) и "Назад"
-            markup = InlineKeyboardBuilder()
-            markup.add(
-                InlineKeyboardButton(text="🔄 Обновить", callback_data=city),
-                InlineKeyboardButton(text="📝 Ввести город заново", callback_data="enter_city"),
-                InlineKeyboardButton(text="☕ Купить мне кофе", url='https://t.me/kofeemeBot'),
-            )
-            markup.adjust(1)  # Упорядочивание кнопок по 2 в ряд
-
-        else:
-            response = "❌ Город не найден. Введите корректное название."
-            markup = None
-
-    except Exception:
-        response = "⚠️ Ошибка при получении данных о погоде. Попробуйте позже."
-        markup = None
-
-    await bot.send_message(chat_id, response, reply_markup=markup.as_markup() if markup else None)
-
-
-async def main():
-    """Функция запуска бота"""
-    await dp.start_polling(bot)
-
-
+# ==========================
+# Запуск Flask и бота одновременно
+# ==========================
 if __name__ == "__main__":
-    asyncio.run(main())
+    import threading
+    import nest_asyncio
+    nest_asyncio.apply()  # Чтобы можно было запускать asyncio в Replit
+
+    # Запуск on_startup в отдельном потоке
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(on_startup())
+
+    # Запуск Flask
+    app.run(host="0.0.0.0", port=3000)
