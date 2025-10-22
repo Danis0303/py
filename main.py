@@ -6,8 +6,8 @@ from aiogram.filters import Command
 from aiogram.methods import DeleteWebhook
 from aiogram.types import Message
 
-mistral_api_key = ""  # ВСТАВЬТЕ API КЛЮЧ MISTRAL AI
-TOKEN = ''  # ВСТАВЬТЕ ТОКЕН БОТА
+mistral_api_key = "FdppZTy7F6gniPkLn90slYBnxyzK53X"  # ВСТАВЬТЕ API КЛЮЧ MISTRAL AI
+TOKEN = '8374515324:AAEDAJezf5FZiDQWHehBhAOhG-NB_PiyFC4'  # ВСТАВЬТЕ ТОКЕН БОТА
 
 model = "mistral-large-latest"
 client = Mistral(api_key=mistral_api_key)
